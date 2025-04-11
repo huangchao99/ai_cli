@@ -1,0 +1,149 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+"""
+ai - A command-line interface for DeepSeek AI API
+"""
+
+import argparse
+import sys
+import os
+from pathlib import Path
+
+# Add parent directory to path so we can import our modules
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from src.api import DeepSeekClient
+from src.config import Config
+from src.modify import process_modify_request
+from src.utils import setup_logger, stream_to_stdout, read_from_stdin, read_file_content
+
+logger = setup_logger()
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="AI command-line interface for DeepSeek API",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  ai "Tell me about Linux open system call"
+  cat example.c | ai "Explain this code"
+  ai "Generate Fibonacci code in C" > fibo.c
+  ai -m readme.md "Translate to Chinese"
+  ai --modify main.c "Fix bugs in this code"
+"""
+    )
+    
+    parser.add_argument(
+        "prompt", 
+        nargs="?", 
+        help="Prompt for the AI model"
+    )
+    parser.add_argument(
+        "-m", "--modify", 
+        metavar="FILE",
+        help="Modify mode: Edit the specified file and display changes as a diff"
+    )
+    parser.add_argument(
+        "-p", "--prompt-file", 
+        metavar="FILE",
+        help="Read prompt from the specified file"
+    )
+    parser.add_argument(
+        "--model", 
+        help="Specify DeepSeek model to use (default: specified in config)"
+    )
+    parser.add_argument(
+        "--configure", 
+        action="store_true",
+        help="Configure API key and default settings"
+    )
+    parser.add_argument(
+        "--debug", 
+        action="store_true",
+        help="Enable debug output"
+    )
+    
+    args = parser.parse_args()
+    
+    # Load configuration
+    config = Config()
+    
+    # Handle configuration mode
+    if args.configure:
+        config.interactive_setup()
+        return 0
+    
+    # Check if API key is configured
+    if not config.get_api_key():
+        print("API key not configured. Please run 'ai --configure' to set up your API key.", file=sys.stderr)
+        return 1
+    
+    # Initialize the API client
+    client = DeepSeekClient(
+        api_key=config.get_api_key(),
+        model=args.model or config.get_model()
+    )
+    
+    # Get prompt from different sources
+    prompt = None
+    
+    if args.prompt_file:
+        prompt = read_file_content(args.prompt_file)
+    elif args.prompt:
+        prompt = args.prompt
+    
+    # Check for stdin input if no prompt or prompt file
+    input_text = None
+    if not sys.stdin.isatty():  # Check if there's stdin data
+        input_text = read_from_stdin()
+        
+        # If we have stdin data but no explicit prompt, use a default
+        if not prompt:
+            prompt = "Please provide insights about the following:"
+    
+    # Validate we have what we need
+    if not prompt:
+        parser.print_help()
+        return 1
+    
+    # Handle modify mode
+    if args.modify:
+        file_path = args.modify
+        if not os.path.exists(file_path):
+            print(f"Error: File '{file_path}' does not exist.", file=sys.stderr)
+            return 1
+        
+        content = read_file_content(file_path)
+        
+        # Use the file content as input if we don't have stdin input
+        if input_text is None:
+            input_text = content
+        
+        return process_modify_request(client, file_path, content, prompt, input_text)
+    
+    # Handle basic mode
+    full_prompt = prompt
+    if input_text:
+        full_prompt = f"{prompt}\n\n{input_text}"
+    
+    try:
+        # Stream the response to stdout
+        for chunk in client.generate_stream(full_prompt):
+            stream_to_stdout(chunk)
+            
+    except KeyboardInterrupt:
+        print("\nOperation cancelled by user.", file=sys.stderr)
+        return 130
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        if args.debug:
+            import traceback
+            traceback.print_exc()
+        return 1
+    
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
