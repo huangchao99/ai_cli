@@ -29,6 +29,13 @@ class DeepSeekClient:
         self.api_key = api_key
         self.model = model or self.DEFAULT_MODEL
         
+        # Set up HTTP session
+        self.session = requests.Session()
+        self.session.headers.update({
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json"
+        })
+        
     def _get_headers(self) -> Dict[str, str]:
         """
         Get the headers required for API requests.
@@ -226,3 +233,50 @@ class DeepSeekClient:
             
         result = response.json()
         return result["choices"][0]["message"]["content"]
+
+    def generate_modified_text(self, content: str, prompt: str, input_text: str = None) -> str:
+        """
+        生成修改后的完整文件内容，而不是差异。
+        
+        Args:
+            content: 要修改的原始内容
+            prompt: 指导修改的提示
+            input_text: 额外的上下文信息（可选）
+            
+        Returns:
+            修改后的完整内容
+        """
+        # 构建系统提示，指示模型直接返回修改后的完整内容
+        system_prompt = """
+        你将会收到一个文件的内容，以及关于如何修改这个文件的指令。
+        请直接返回修改后的完整文件内容，不要包含任何解释、注释或差异标记。
+        不要添加额外的装饰、标记或代码块符号（如```）。
+        只返回修改后的完整文件内容，就像这是一个新文件一样。
+        """
+        
+        # 构建用户提示
+        user_prompt = f"{prompt}\n\n文件内容:\n{content}"
+        if input_text:
+            user_prompt = f"{prompt}\n\n附加信息:\n{input_text}\n\n文件内容:\n{content}"
+            
+        # 调用API
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ]
+        
+        payload = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": 0.1,  # 低温度，更确定性的输出
+            "max_tokens": 8192,
+            "stop": None
+        }
+        
+        try:
+            response = self.session.post(f"{self.API_BASE_URL}/chat/completions", json=payload)
+            response.raise_for_status()
+            result = response.json()
+            return result["choices"][0]["message"]["content"]
+        except requests.exceptions.RequestException as e:
+            raise Exception(f"API request failed: {str(e)}")
