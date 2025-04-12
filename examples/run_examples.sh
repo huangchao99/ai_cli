@@ -60,5 +60,14 @@ $AI_CMD -m example.c "优化这个斐波那契数列程序，提高性能并修�
 echo
 echo "原始文件已备份为 example_backup.c"
 
+# 示例 5: 查询余额
+echo
+echo "=== 示例 5: 查询账户余额 ==="
+echo "命令: $AI_CMD -b"
+echo "提示: 按 Ctrl+C 跳过当前示例"
+read -p "按回车键继续..." 
+$AI_CMD -b
+echo
+
 echo "===== 示例运行完毕 ====="
 echo "您可以在 README.md 中找到更多使用说明和高级特性。"

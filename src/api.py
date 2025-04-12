@@ -126,6 +126,40 @@ class DeepSeekClient:
                     except json.JSONDecodeError:
                         continue
     
+    def get_balance(self) -> Dict[str, Any]:
+        """
+        Retrieve the current account balance and usage information.
+        
+        Returns:
+            Dictionary containing balance and usage information
+            
+        Raises:
+            Exception: If the API request fails
+        """
+        # 正确的余额查询端点 (直接使用base URL的根域名)
+        url = "https://api.deepseek.com/user/balance"
+        
+        try:
+            headers = {
+                'Accept': 'application/json',
+                'Authorization': f'Bearer {self.api_key}'
+            }
+            
+            response = requests.get(
+                url,
+                headers=headers
+            )
+            
+            if response.status_code != 200:
+                error_info = response.json() if response.content else {"error": "Unknown error"}
+                raise Exception(f"API错误 (状态码 {response.status_code}): {error_info}")
+            
+            # 解析并返回实际的余额信息
+            return response.json()
+                
+        except requests.exceptions.RequestException as e:
+            raise Exception(f"网络连接错误: {e}")
+    
     def generate_diff(self, original_content: str, prompt: str, input_text: Optional[str] = None) -> str:
         """
         Generate a diff-style modification of the original content.

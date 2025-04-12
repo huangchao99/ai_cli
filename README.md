@@ -68,6 +68,16 @@ export PATH="$PATH:/path/to/ai-cli/bin"
 ai "介绍下 Linux 的 open 系统调用"
 ```
 
+### 查询账户余额和API状态
+
+```bash
+ai -b
+# 或
+ai --balance
+```
+
+此命令将验证API密钥是否有效，并提示您访问DeepSeek开发者平台以查看详细的余额信息。由于DeepSeek API目前不提供直接的余额查询端点，此功能主要用于验证API密钥状态。
+
 ### 使用管道传递输入
 
 ```bash

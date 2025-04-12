@@ -31,6 +31,7 @@ Examples:
   ai "Generate Fibonacci code in C" > fibo.c
   ai -m readme.md "Translate to Chinese"
   ai --modify main.c "Fix bugs in this code"
+  ai -b                           # Check API account balance
 """
     )
     
@@ -54,9 +55,19 @@ Examples:
         help="Specify DeepSeek model to use (default: specified in config)"
     )
     parser.add_argument(
-        "--configure", 
+        "-c","--configure", 
         action="store_true",
         help="Configure API key and default settings"
+    )
+    parser.add_argument(
+        "-b", "--balance",
+        action="store_true",
+        help="Check your DeepSeek API account balance"
+    )
+    parser.add_argument(
+        "-r","--reasoner",
+        action="store_true",
+        help="Use deepseek-reasoner model"
     )
     parser.add_argument(
         "--debug", 
@@ -65,7 +76,8 @@ Examples:
     )
     
     args = parser.parse_args()
-    
+    if args.reasoner:
+        args.model="deepseek-reasoner"
     # Load configuration
     config = Config()
     
@@ -84,6 +96,38 @@ Examples:
         api_key=config.get_api_key(),
         model=args.model or config.get_model()
     )
+    
+    # Handle balance check
+    if args.balance:
+        try:
+            balance_info = client.get_balance()
+            
+            # Check if account is available
+            if balance_info.get("is_available", False):
+                print("DeepSeek API 账户余额:")
+                
+                # Process each balance info (typically only one entry in the array)
+                for balance in balance_info.get("balance_infos", []):
+                    currency = balance.get("currency", "CNY")
+                    
+                    print(f"总额度: {balance.get('total_balance', '0.00')} {currency}")
+                    print(f"赠送额度: {balance.get('granted_balance', '0.00')} {currency}")
+                    print(f"充值额度: {balance.get('topped_up_balance', '0.00')} {currency}")
+                
+                # Print model info
+                print(f"\nAPI密钥状态: 有效")
+                print(f"使用模型: {config.get_model()}")
+            else:
+                print("DeepSeek API 账户状态: 不可用")
+                print("请检查您的账户状态或联系DeepSeek支持.")
+                
+            return 0
+        except Exception as e:
+            print(f"获取余额失败: {e}", file=sys.stderr)
+            if args.debug:
+                import traceback
+                traceback.print_exc()
+            return 1
     
     # Get prompt from different sources
     prompt = None
